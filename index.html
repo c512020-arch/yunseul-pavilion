@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>윤슬 파빌리온</title>
+<style>
+  :root{
+    --ink:#1d2733; --muted:#5d6b7a; --paper:rgba(250,251,252,.88); --line:rgba(29,39,51,.12);
+    --accent:#2a8db3; --warm:#e8964b; --bad:#d9534f;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR",system-ui,sans-serif;color:var(--ink);background:#0b1424}
+  #view{position:fixed;inset:0}
+  canvas{display:block}
+
+  .title{position:fixed;left:28px;top:22px;pointer-events:none;color:#fff;text-shadow:0 1px 12px rgba(0,0,0,.35);transition:color .6s}
+  .title h1{margin:0;font-size:30px;letter-spacing:.02em;font-weight:700}
+  .title p{margin:6px 0 0;font-size:15px;opacity:.92;max-width:520px;line-height:1.5}
+  body.day .title{color:#13202c;text-shadow:0 1px 10px rgba(255,255,255,.6)}
+
+  .panel{position:fixed;left:20px;top:118px;width:360px;max-height:calc(100% - 230px);overflow:auto;background:var(--paper);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.18)}
+  .tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:10px 10px 0}
+  .tabs button{border:0;background:transparent;padding:8px 4px;border-radius:8px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer}
+  .tabs button b{display:block;font-size:11px;color:var(--accent);font-weight:600}
+  .tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+  .body{padding:14px 18px 18px;font-size:14px;line-height:1.65}
+  .body h2{margin:2px 0 8px;font-size:18px}
+  .body p{margin:0 0 10px}
+  .body .one{font-weight:600;color:#123}
+  .body table{width:100%;border-collapse:collapse;margin:6px 0 10px;font-size:13px}
+  .body td{padding:6px 4px;border-bottom:1px solid var(--line)}
+  .body td:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+  .row{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+  .btn{border:1px solid var(--line);background:#fff;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink)}
+  .btn.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .legend{height:12px;border-radius:6px;background:linear-gradient(90deg,#d7e6f0,#2a8db3,#0d4f6e);margin:6px 0 2px}
+  .legend-l{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+  .cmp{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+  .cmp div{background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 10px;font-size:12.5px}
+  .cmp b{display:block;font-size:13px;margin-bottom:2px}
+  .tag{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .muted{color:var(--muted);font-size:12.5px}
+  img.cap{width:100%;border-radius:8px;border:1px solid var(--line);margin:4px 0 8px;display:block}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+
+  .bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);width:min(720px,calc(100% - 40px));background:var(--paper);backdrop-filter:blur(10px);border:1px solid var(--line);border-radius:14px;padding:10px 16px 12px;box-shadow:0 10px 30px rgba(0,0,0,.18);display:grid;grid-template-columns:auto 1fr auto;gap:6px 14px;align-items:center}
+  .bar .time{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;min-width:64px}
+  .bar .read{grid-column:1/-1;display:flex;gap:16px;font-size:12.5px;color:var(--muted);flex-wrap:wrap}
+  .bar .read b{color:var(--ink)}
+  .bar select{font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:#fff}
+  .badge{position:fixed;right:20px;top:20px;background:var(--paper);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px;display:flex;gap:8px;align-items:center}
+  .badge label{cursor:pointer;display:flex;gap:4px;align-items:center}
+  #loading{position:fixed;inset:0;display:grid;place-items:center;color:#fff;font-size:15px;background:#0b1424;z-index:10;transition:opacity .6s}
+  @media (max-width:760px){
+    .panel{top:auto;bottom:118px;left:10px;right:10px;width:auto;max-height:38%}
+    .title{left:14px;top:12px}.title h1{font-size:22px}.title p{font-size:13px}
+    .bar{bottom:8px}
+  }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<div id="view"></div>
+<div id="loading">모델 불러오는 중…</div>
+
+<div class="title">
+  <h1>윤슬 파빌리온</h1>
+  <p>물 위에서 반짝이는 윤슬을, 크기가 물결치는 반투명 원판들 사이로 쏟아지는 빛으로 느끼게 한다.</p>
+</div>
+
+<div class="badge">
+  <label><input type="checkbox" id="autorot" checked> 천천히 회전</label>
+</div>
+
+<div class="panel">
+  <div class="tabs" id="tabs">
+    <button data-k="idea" class="on"><b>1</b>아이디어</button>
+    <button data-k="data"><b>2</b>데이터</button>
+    <button data-k="logic"><b>3</b>로직</button>
+    <button data-k="parts"><b>4</b>부재·개수</button>
+    <button data-k="struct"><b>5</b>구조 점검</button>
+    <button data-k="mat"><b>6</b>재료·접합</button>
+  </div>
+  <div class="body" id="body"></div>
+</div>
+
+<div class="bar">
+  <div class="time" id="tlabel">12:00</div>
+  <input type="range" id="time" min="5" max="22" step="0.05" value="12">
+  <select id="season">
+    <option value="0">춘분</option>
+    <option value="23.44" selected>하지</option>
+    <option value="-23.44">동지</option>
+  </select>
+  <div class="read">
+    <span>태양 고도 <b id="ralt">-</b></span>
+    <span>일사 지수 <b id="rins">-</b></span>
+    <span>빛의 주인공 <b id="rwho">-</b></span>
+    <span class="muted">서울(북위 37.5°) 기준 · 남쪽이 입구</span>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from './vendor/OrbitControls.js';
+import { GLTFLoader } from './vendor/GLTFLoader.js';
+
+// ---------- basic scene ----------
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+const TEST = location.search.includes('test');
+renderer.setPixelRatio(TEST ? 1 : Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+view.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#bcd6ea');
+scene.fog = new THREE.Fog('#bcd6ea', 30, 70);
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 200);
+camera.position.set(9.5, 5.2, 12.5);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.45;
+controls.maxPolarAngle = Math.PI * 0.495;
+controls.minDistance = 3; controls.maxDistance = 40;
+
+const hemi = new THREE.HemisphereLight('#dfefff', '#8a8f86', 0.6);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight('#fff4e0', 3);
+sun.castShadow = true;
+sun.shadow.mapSize.set(TEST ? 1024 : 4096, TEST ? 1024 : 4096);
+sun.shadow.camera.left = -9; sun.shadow.camera.right = 9;
+sun.shadow.camera.top = 9; sun.shadow.camera.bottom = -9;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 60;
+sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.02;
+scene.add(sun, sun.target);
+
+const ground = new THREE.Mesh(
+  new THREE.CircleGeometry(40, 96),
+  new THREE.MeshStandardMaterial({ color: '#d9d6cc', roughness: 0.92 })
+);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// eye-level plane (data scene)
+const eyePlane = new THREE.Mesh(
+  new THREE.RingGeometry(0.2, 4.6, 96),
+  new THREE.MeshBasicMaterial({ color: '#2a8db3', transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false })
+);
+eyePlane.rotation.x = -Math.PI / 2;
+eyePlane.visible = false;
+scene.add(eyePlane);
+
+// ---------- materials ----------
+const SHEET_COLOR = new THREE.Color('#eef4f8');
+const steelMat = new THREE.MeshStandardMaterial({ color: '#c3c8ce', metalness: 0.9, roughness: 0.28 });
+const ringMat = new THREE.MeshStandardMaterial({ color: '#c3c8ce', metalness: 0.9, roughness: 0.3, emissive: '#000' });
+const lampMat = new THREE.MeshStandardMaterial({ color: '#fff3dc', emissive: '#ffcf8a', emissiveIntensity: 0.2, roughness: 0.4 });
+function sheetMaterial() {
+  return new THREE.MeshStandardMaterial({
+    color: SHEET_COLOR.clone(), transparent: true, opacity: 0.55, roughness: 0.3, metalness: 0,
+    side: THREE.DoubleSide, depthWrite: false, emissive: new THREE.Color('#ffd9a0'), emissiveIntensity: 0
+  });
+}
+
+// ---------- load models ----------
+const loader = new GLTFLoader();
+const MODELS = { after: 'models/after.glb', before: 'models/before.glb' };
+const models = {};
+let norm = null; // shared normalisation {scale, offset}
+
+function loadGLB(url) {
+  return new Promise((res) => loader.load(url, g => res(g.scene), undefined, () => res(null)));
+}
+
+// fallback for hosts that cannot serve .glb files: the same glb, base64-packed in a .js module
+async function loadPacked(url) {
+  try {
+    const mod = await import('./' + url);
+    const bin = Uint8Array.from(atob(mod.default), c => c.charCodeAt(0));
+    return await new Promise((res) => loader.parse(bin.buffer, '', g => res(g.scene), () => res(null)));
+  } catch (e) { return null; }
+}
+
+function classify(mesh, box) {
+  const n = (mesh.name + ' ' + (mesh.parent ? mesh.parent.name : '') + ' ' + (mesh.material && mesh.material.name || '')).toLowerCase();
+  const s = new THREE.Vector3(); box.getSize(s);
+  if (/light|조명|lamp/.test(n)) return 'light';
+  if (/ring|링/.test(n)) return 'ring';
+  if (/pin|핀/.test(n)) return 'pin';
+  if (/sheet|판|acryl/.test(n)) return 'sheet';
+  const w = Math.max(s.x, s.z);
+  if (w < 0.05) return 'pin';
+  if (s.y < 0.03 && w > 1.0) return 'ring';
+  if (Math.abs(s.x - s.y) < 0.06 && s.y > 0.2) return 'light';
+  return 'sheet';
+}
+
+function prepare(root) {
+  const g = new THREE.Group(); g.add(root); scene.add(g);
+  g.updateMatrixWorld(true);
+  if (!norm) {
+    const b = new THREE.Box3().setFromObject(g);
+    const size = b.getSize(new THREE.Vector3());
+    const scale = Math.max(size.x, size.y, size.z) > 100 ? 0.001 : 1; // mm → m
+    const c = b.getCenter(new THREE.Vector3());
+    norm = { scale, offset: new THREE.Vector3(-c.x * scale, -b.min.y * scale, -c.z * scale) };
+  }
+  g.scale.setScalar(norm.scale);
+  g.position.copy(norm.offset);
+  g.updateMatrixWorld(true);
+  // pins hang 40 mm below the first sheet: lift so the lowest sheet sits on the ground
+  const m = { group: g, sheets: [], pins: [], rings: [], lights: [], lamps: [] };
+  const metas = [];
+  // one glTF node = one Rhino object; multi-face objects arrive as a Group of meshes
+  let parts = root.children.slice();
+  if (parts.length === 1 && parts[0].children.length > 50) parts = parts[0].children.slice();
+  parts.forEach(o => {
+    const meshes = []; o.traverse(c => { if (c.isMesh) { meshes.push(c); if (!c.geometry.attributes.normal) c.geometry.computeVertexNormals(); } });
+    const box = new THREE.Box3().setFromObject(o);
+    const kind = classify(meshes[0], box);
+    const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+    o.userData = { kind, c, s, ymin: box.min.y, ymax: box.max.y, base: o.position.clone() };
+    let mat;
+    if (kind === 'sheet') { mat = sheetMaterial(); m.sheets.push(o); }
+    else if (kind === 'pin') { mat = steelMat; m.pins.push(o); }
+    else if (kind === 'ring') { mat = ringMat; m.rings.push(o); }
+    else { mat = lampMat; m.lights.push(o); }
+    o.material = mat;
+    meshes.forEach(mm => { mm.material = mat; mm.castShadow = kind !== 'light'; mm.receiveShadow = kind === 'sheet'; });
+    metas.push(o);
+  });
+  let minSheet = Math.min(...m.sheets.map(o => o.userData.ymin));
+  if (isFinite(minSheet) && Math.abs(minSheet) > 0.001) {
+    g.position.y -= minSheet; g.updateMatrixWorld(true);
+    metas.forEach(o => { const b = new THREE.Box3().setFromObject(o); o.userData.c = b.getCenter(new THREE.Vector3()); o.userData.ymin = b.min.y; o.userData.ymax = b.max.y; });
+  }
+  m.lights.forEach(l => {
+    const p = new THREE.PointLight('#ffc77d', 0, 9, 1.6);
+    p.position.copy(l.userData.c); scene.add(p); m.lamps.push(p);
+  });
+  m.top = Math.max(...m.sheets.map(o => o.userData.ymax));
+  computeSupport(m);
+  return m;
+}
+
+// ---------- structural support check (Monte-Carlo, same rule as in Grasshopper) ----------
+function computeSupport(m) {
+  const T = 0.12;
+  const discs = m.sheets.filter(o => {
+    const k = o.userData.ymin / T; return Math.abs(k - Math.round(k)) < 0.2; // bottom sheet of a layer
+  }).map(o => ({ o, x: o.userData.c.x, z: o.userData.c.z, r: o.userData.s.x / 2, k: Math.round(o.userData.ymin / T) }));
+  const byK = new Map();
+  discs.forEach(d => { if (!byK.has(d.k)) byK.set(d.k, []); byK.get(d.k).push(d); });
+  const rings = m.rings.map(o => ({ x: o.userData.c.x, z: o.userData.c.z, ro: o.userData.s.x / 2, top: o.userData.ymax }));
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const tops = new Map(m.sheets.map(o => [`${o.userData.c.x.toFixed(2)},${o.userData.c.z.toFixed(2)},${Math.round((o.userData.ymin - 0.06) / T)}`, o]));
+  m.weak = []; m.floating = 0;
+  discs.forEach(d => {
+    if (d.k === 0) return;
+    const below = byK.get(d.k - 1) || [];
+    const yb = d.k * T;
+    const rs = rings.filter(r => Math.abs(r.top - yb) < 0.03);
+    let hit = 0; const N = 160;
+    for (let i = 0; i < N; i++) {
+      const a = rnd() * Math.PI * 2, rr = d.r * Math.sqrt(rnd());
+      const px = d.x + rr * Math.cos(a), pz = d.z + rr * Math.sin(a);
+      let ok = below.some(b => (px - b.x) ** 2 + (pz - b.z) ** 2 < b.r * b.r);
+      if (!ok) ok = rs.some(r => { const q = Math.hypot(px - r.x, pz - r.z); return q < r.ro && q > r.ro - 0.8; });
+      if (ok) hit++;
+    }
+    const ratio = hit / N;
+    if (ratio < 0.25) {
+      const top = tops.get(`${d.x.toFixed(2)},${d.z.toFixed(2)},${d.k}`);
+      m.weak.push({ ratio, sheets: top ? [d.o, top] : [d.o] });
+      if (ratio === 0) m.floating++;
+    }
+  });
+}
+
+// ---------- state & scenes ----------
+const state = { tab: 'idea', model: 'after', explode: 0, reveal: null, partsView: 'all' };
+let cur = null;
+
+function setModel(key) {
+  if (!models[key]) key = models.after ? 'after' : 'before';
+  state.model = key;
+  for (const k in models) {
+    const on = k === key;
+    models[k].group.visible = on;
+    models[k].lamps.forEach(p => p.visible = on);
+  }
+  cur = models[key];
+  applyLook();
+  updateSun();
+}
+
+function eyeFactor(y) { return Math.max(0, 1 - Math.abs(y - 1.6) / 1.5); }
+const C0 = new THREE.Color('#d7e6f0'), C1 = new THREE.Color('#2a8db3'), C2 = new THREE.Color('#0d4f6e');
+function ramp(t) { return t < 0.5 ? C0.clone().lerp(C1, t * 2) : C1.clone().lerp(C2, (t - 0.5) * 2); }
+
+function applyLook() {
+  if (!cur) return;
+  const t = state.tab;
+  const weakSet = new Set();
+  if (t === 'struct' && state.model === 'before') cur.weak.forEach(w => w.sheets.forEach(s => weakSet.add(s)));
+  cur.sheets.forEach(o => {
+    const mat = o.material;
+    if (t === 'data') { mat.color.copy(ramp(eyeFactor(o.userData.c.y))); mat.opacity = 0.85; }
+    else if (weakSet.has(o)) { mat.color.set('#d9534f'); mat.opacity = 0.95; }
+    else { mat.color.copy(SHEET_COLOR); mat.opacity = (t === 'struct' || t === 'parts' && state.partsView === 'joint') ? 0.18 : 0.55; }
+    o.visible = !(t === 'parts' && state.partsView === 'joint');
+  });
+  const showJoint = t !== 'parts' || state.partsView !== 'sheet';
+  cur.pins.forEach(o => o.visible = showJoint);
+  cur.rings.forEach(o => o.visible = showJoint);
+  ringMat.emissive.set(t === 'struct' && state.model === 'after' ? '#e8964b' : '#000');
+  ringMat.emissiveIntensity = 0.9;
+  steelMat.emissive.set(t === 'struct' && state.model === 'after' ? '#3a6fa0' : '#000');
+  eyePlane.visible = t === 'data';
+  eyePlane.position.set(0, 1.6, 0);
+  applyExplode();
+}
+
+function applyExplode() {
+  if (!cur) return;
+  const e = state.tab === 'mat' ? state.explode : 0;
+  const all = [...cur.sheets, ...cur.pins, ...cur.rings, ...cur.lights];
+  all.forEach(o => {
+    const yc = o.userData.c.y;
+    o.position.copy(o.userData.base);
+    o.position.y += (yc * e * 0.3) / cur.group.scale.y;
+    if (state.reveal !== null) o.visible = o.visible && yc <= state.reveal;
+  });
+}
+
+// ---------- sun & lamps ----------
+const LAT = 37.55 * Math.PI / 180;
+const skyDay = new THREE.Color('#bcd6ea'), skyDusk = new THREE.Color('#e9a873'), skyNight = new THREE.Color('#0b1424');
+function updateSun() {
+  const h = +document.getElementById('time').value;
+  const dec = +document.getElementById('season').value * Math.PI / 180;
+  const H = (h - 12) * 15 * Math.PI / 180;
+  const sinAlt = Math.sin(LAT) * Math.sin(dec) + Math.cos(LAT) * Math.cos(dec) * Math.cos(H);
+  const alt = Math.asin(sinAlt);
+  const az = Math.atan2(Math.sin(H), Math.cos(H) * Math.sin(LAT) - Math.tan(dec) * Math.cos(LAT)); // from south, + toward west
+  const D = 30;
+  sun.position.set(-Math.sin(az) * Math.cos(alt) * D, Math.max(sinAlt, 0.02) * D, Math.cos(az) * Math.cos(alt) * D);
+  sun.target.position.set(0, 0, 0);
+  const ins = Math.max(0, sinAlt);                        // 일사 지수 (0~1)
+  const lamp = 1 - THREE.MathUtils.smoothstep(ins, 0.02, 0.35); // 일사가 줄수록 조명이 켜진다
+  sun.intensity = 3.2 * Math.pow(ins, 0.6);
+  sun.color.setHSL(0.09, 0.7, 0.55 + 0.4 * Math.min(1, ins * 2.5));
+  hemi.intensity = 0.12 + 0.55 * Math.min(1, ins * 2.2);
+  const sky = ins > 0.18 ? skyDay.clone() : skyDusk.clone().lerp(skyDay, ins / 0.18);
+  if (sinAlt < 0.04) sky.copy(skyDusk).lerp(skyNight, THREE.MathUtils.clamp((0.04 - sinAlt) / 0.14, 0, 1));
+  scene.background.copy(sky); scene.fog.color.copy(sky);
+  renderer.toneMappingExposure = 0.85 + 0.35 * lamp;
+  if (cur) {
+    cur.lamps.forEach(p => p.intensity = 14 * lamp);
+    lampMat.emissiveIntensity = 0.2 + 3.2 * lamp;
+    const dayE = new THREE.Color('#dbe8f2'), nightE = new THREE.Color('#ffd49a');
+    const ec = dayE.clone().lerp(nightE, lamp);
+    cur.sheets.forEach(o => {
+      const mt = o.material; mt.emissive.copy(ec);
+      mt.emissiveIntensity = state.tab === 'data' ? 0 : 0.22 * (1 - lamp) * Math.sqrt(ins) + 0.12 * lamp * Math.max(0.15, 1 - Math.abs(o.userData.c.y - 2.4) / 3);
+    });
+  }
+  document.body.classList.toggle('day', ins > 0.15);
+  const hh = Math.floor(h), mm = Math.round((h - hh) * 60);
+  document.getElementById('tlabel').textContent = `${String(hh).padStart(2, '0')}:${String(mm % 60).padStart(2, '0')}`;
+  document.getElementById('ralt').textContent = `${(alt * 180 / Math.PI).toFixed(0)}°`;
+  document.getElementById('rins').textContent = ins.toFixed(2);
+  document.getElementById('rwho').textContent = lamp < 0.2 ? '햇빛' : lamp > 0.8 ? '조명' : '햇빛 → 조명';
+}
+document.getElementById('time').addEventListener('input', updateSun);
+document.getElementById('season').addEventListener('change', updateSun);
+document.getElementById('autorot').addEventListener('change', e => controls.autoRotate = e.target.checked);
+
+// ---------- panel content ----------
+const body = document.getElementById('body');
+function counts(m) {
+  return { sheets: m.sheets.length, discs: m.sheets.length / 2, pins: m.pins.length, rings: m.rings.length, lights: m.lights.length };
+}
+function render() {
+  const t = state.tab;
+  const a = models.after ? counts(models.after) : null, b = models.before ? counts(models.before) : null;
+  const c = counts(cur);
+  let h = '';
+  if (t === 'idea') h = `
+    <h2>아이디어</h2>
+    <p class="one">물 위에서 반짝이는 윤슬을 파빌리온 안팎에서 느끼게 한다.</p>
+    <p>크기가 물결처럼 변하는 반투명 원판들이 층마다 조금씩 돌아가며 쌓이고, 그 틈으로 들어온 빛이 바닥과 몸 위에서 일렁인다.</p>
+    <p><b>참조</b> 서펜타인 갤러리 파빌리온 2006 (렘 콜하스 · 세실 발몬드)</p>
+    <table>
+      <tr><td>가져온 것</td><td style="text-align:left;font-weight:400">반투명 재료로 빛을 담는 둥근 덩어리, 밤이면 안에서 빛나는 등불 같은 모습</td></tr>
+      <tr><td>바꾼 것</td><td style="text-align:left;font-weight:400">매끈한 막 하나 → 수백 장의 원판이 모인 틈 있는 표면. 고르게 퍼지는 빛 → 조각조각 반짝이는 윤슬. 한 덩어리 → 높고 좁은 매스 + 낮고 넓은 매스</td></tr>
+    </table>
+    <p class="muted">아래 시간 슬라이더를 움직여 보세요. 낮에는 햇빛이, 해가 지면 조명이 윤슬을 만듭니다.</p>`;
+  if (t === 'data') h = `
+    <h2>데이터 · 시선(눈높이)</h2>
+    <p class="one">눈높이 1.6m → 그 높이에 가까운 층일수록 물결을 크게</p>
+    <p>사람의 눈높이를 읽어, 층 높이와 1.6m의 거리에 따라 원판 크기 차이(물결 세기)를 0.5배~1.8배로 바꿨다. 안에서도 밖에서도 눈앞에서 물결이 가장 크게 일렁인다.</p>
+    <div class="legend"></div>
+    <div class="legend-l"><span>물결 0.5배 (눈높이에서 1.5m 이상)</span><span>1.8배 (눈높이 1.6m)</span></div>
+    <table>
+      <tr><td>높이 0m · 크기 차이</td><td>1.5배</td></tr>
+      <tr><td>높이 1.8m · 크기 차이</td><td>3.9배</td></tr>
+      <tr><td>높이 4.2m · 크기 차이</td><td>1.2배</td></tr>
+    </table>
+    <p class="muted">파란 원반 = 눈높이 1.6m. 색이 진할수록 물결이 큰 층(단위: m).</p>`;
+  if (t === 'logic') h = `
+    <h2>로직 · 매스 조합 + 블록 단위</h2>
+    <p class="one">두 원통 매스를 조합하고, 그 표면을 원판 블록으로 채운다.</p>
+    <table>
+      <tr><td>입력</td><td style="text-align:left;font-weight:400">층 두께, 매스 반지름·높이, 중심거리, 회전각, 물결 세기·빈도, 눈높이, 입구 크기</td></tr>
+      <tr><td>규칙</td><td style="text-align:left;font-weight:400">위로 갈수록 고리가 줄어듦 → 층마다 원 개수 감소 → 사인 물결로 크기 변화 → 서로 맞닿되 안 겹치게 배치 → 층마다 회전 → 두 매스 겹침·입구 제거</td></tr>
+      <tr><td>출력</td><td style="text-align:left;font-weight:400">2장 겹친 원판 층, 숨은 핀, 조명</td></tr>
+    </table>
+    <div class="row"><button class="btn" id="play">▶ 형태가 쌓이는 과정 재생</button></div>
+    <a href="images/gh_canvas.png" target="_blank"><img class="cap" src="images/gh_canvas.png" alt="Grasshopper 캔버스" onerror="this.style.display='none'"></a><p class="muted">캔버스 캡처 (누르면 크게 보기)</p>`;
+  if (t === 'parts') h = `
+    <h2>부재 · 개수</h2>
+    <table>
+      <tr><td><span class="tag" style="background:#e3edf5;border:1px solid #9bb"></span>반투명 판 (60mm, 2장이 1층)</td><td>${c.sheets}장</td></tr>
+      <tr><td><span class="tag" style="background:#c3c8ce"></span>스테인리스 핀 (Ø12 × 80mm)</td><td>${c.pins}개</td></tr>
+      ${c.rings ? `<tr><td><span class="tag" style="background:#e8964b"></span>스테인리스 링 보 (두께 10mm)</td><td>${c.rings}개</td></tr>` : ''}
+      <tr><td><span class="tag" style="background:#ffcf8a"></span>구형 조명</td><td>${c.lights}개</td></tr>
+    </table>
+    <p><b>놓은 기준</b> 원판은 고리를 따라 서로 맞닿게, 핀은 아래층 원판이 받쳐주는 원판 중심에, 조명은 각 매스 중앙(높이의 72% · 78%)에.</p>
+    <div class="row">
+      <button class="btn ${state.partsView === 'all' ? 'on' : ''}" data-pv="all">전체</button>
+      <button class="btn ${state.partsView === 'sheet' ? 'on' : ''}" data-pv="sheet">판만</button>
+      <button class="btn ${state.partsView === 'joint' ? 'on' : ''}" data-pv="joint">핀 · 링 보만</button>
+    </div>`;
+  if (t === 'struct') {
+    const bw = models.before ? models.before.weak.length : '-', bf = models.before ? models.before.floating : '-';
+    const aw = models.after ? models.after.weak.length : '-', af = models.after ? models.after.floating : '-';
+    h = `
+    <h2>구조 점검 · 적층 쉘</h2>
+    <p class="one">판을 쌓은 껍데기 전체가 눌리는 힘으로 무게를 땅까지 보낸다.</p>
+    <p>각 원판 → 아래층 원판과 겹친 면 → … → 맨 아래층 → 땅. 층마다 회전해서 벽돌처럼 엇갈려 얹히고, 핀은 층이 옆으로 밀리지 않게 잡는다.</p>
+    <div class="row">
+      <button class="btn ${state.model === 'before' ? 'on' : ''}" data-m="before">보강 전</button>
+      <button class="btn ${state.model === 'after' ? 'on' : ''}" data-m="after">보강 후</button>
+    </div>
+    <div class="cmp">
+      <div><b>보강 전</b><span class="tag" style="background:#d9534f"></span>받침 25% 미만 ${bw}개<br>떠 있는 원판 ${bf}개<br>링 보 없음</div>
+      <div><b>보강 후</b>받침 25% 미만 ${aw}개 → 보강 핀으로 고정<br>떠 있는 원판 ${af}개<br><span class="tag" style="background:#e8964b"></span>입구 위 링 보</div>
+    </div>
+    <p><b>AI가 짚은 약한 곳</b> ① 입구 위에 받침 없이 뜬 원판 ② 두 매스 이음부에서 받침이 잘린 원판 ③ 꽉 찬 아크릴 자중 약 41톤</p>
+    <p><b>고친 점</b> ① 입구 위 스테인리스 링 보 ② 이음부 원판은 지우지 않고 크기만 줄여 받침 유지 ③ 걸침이 부족한 원판에 보강 핀 추가 ④ 중공 폴리카보네이트로 재료 변경</p>
+    <p class="muted">빨간 원판 = 아래 판에 25% 미만으로 얹힌 원판 (웹에서 직접 계산)</p>`;
+  }
+  if (t === 'mat') h = `
+    <h2>재료 · 접합 · 마무리</h2>
+    <table>
+      <tr><td>판</td><td style="text-align:left;font-weight:400">반투명 <b>중공 폴리카보네이트</b>. 속이 빈 칸 구조라 꽉 찬 아크릴보다 훨씬 가볍고, 칸 벽에서 빛이 한 번 더 부서진다. 잘린 옆면은 마감 캡으로 막는다.</td></tr>
+      <tr><td>접합</td><td style="text-align:left;font-weight:400">겉에서 안 보이는 <b>스테인리스 도웰 핀</b>(Ø12, 길이 80) — 아래 판과 윗판에 반씩 꽂는다. 입구 위에는 10mm 홈에 묻는 <b>스테인리스 링 보</b>.</td></tr>
+      <tr><td>생산</td><td style="text-align:left;font-weight:400">레이저/CNC로 원판을 자르고 핀 구멍을 같이 뚫는다. 원판마다 층·번호를 새긴다.</td></tr>
+      <tr><td>조립</td><td style="text-align:left;font-weight:400">바닥 기초 링 → 아래층부터 핀에 끼워 한 층씩 → 입구 높이에서 링 보 → 위로 마감. 해체는 그 반대로, 판은 그대로 재사용.</td></tr>
+    </table>
+    <p>펼쳐 보기</p>
+    <input type="range" id="explode" min="0" max="1" step="0.01" value="${state.explode}">
+    <p class="one" style="margin-top:12px">다시, 물 위에서 반짝이는 윤슬을 — 안에서도 밖에서도.</p>`;
+  body.innerHTML = h;
+  const play = document.getElementById('play');
+  if (play) play.onclick = playReveal;
+  body.querySelectorAll('[data-pv]').forEach(btn => btn.onclick = () => { state.partsView = btn.dataset.pv; applyLook(); render(); });
+  body.querySelectorAll('[data-m]').forEach(btn => btn.onclick = () => { setModel(btn.dataset.m); render(); });
+  const ex = document.getElementById('explode');
+  if (ex) ex.oninput = e => { state.explode = +e.target.value; applyExplode(); };
+}
+
+document.querySelectorAll('#tabs button').forEach(btn => btn.onclick = () => {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b === btn));
+  state.tab = btn.dataset.k; state.reveal = null;
+  if (state.tab !== 'struct' && state.model !== 'after' && models.after) setModel('after');
+  if (state.tab !== 'parts') state.partsView = 'all';
+  applyLook(); updateSun(); render();
+});
+
+let revealAnim = null;
+function playReveal() {
+  const start = performance.now(), dur = 6000;
+  cancelAnimationFrame(revealAnim);
+  const step = now => {
+    const k = Math.min(1, (now - start) / dur);
+    state.reveal = k * (cur.top + 0.2);
+    applyLook();
+    if (k < 1) revealAnim = requestAnimationFrame(step); else { state.reveal = null; applyLook(); }
+  };
+  revealAnim = requestAnimationFrame(step);
+}
+
+// ---------- boot ----------
+(async () => {
+  for (const k of ['after', 'before']) {
+    const r = (await loadGLB(MODELS[k])) || (await loadPacked(MODELS[k].replace('.glb', '.js')));
+    if (r) models[k] = prepare(r);
+  }
+  if (!models.after && !models.before) {
+    const r = await loadGLB('models/test.glb');
+    if (r) models.after = prepare(r);
+  }
+  setModel('after');
+  controls.target.set(0, 1.6, 0);
+  render();
+  const L = document.getElementById('loading'); L.style.opacity = 0; setTimeout(() => L.remove(), 700);
+  window.__models = models; window.__ready = true;
+})();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+if (TEST) { window.__render = () => { controls.update(); renderer.render(scene, camera); }; }
+else renderer.setAnimationLoop(() => { controls.update(); renderer.render(scene, camera); });
+</script>
+</body>
+</html>
